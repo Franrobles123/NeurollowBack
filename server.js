@@ -3,7 +3,10 @@ import cors from 'cors';
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import contactoRoutes from './routes/contacto.routes.js';
-import DemoRequest from './models/Calendario.js';
+import DemoRequest from './routes/calendario.routes.js';
+import ContactMessageSchema from './models/Contacto.js';
+import DemoRequestSchema from './models/Calendario.js';
+
 
 dotenv.config();
 
@@ -23,7 +26,7 @@ app.use((req, res, next) => {
 
 // Rutas
 app.use('/api/contact', contactoRoutes);
-app.use('/api/demo', calendarioRoutes);
+app.use('/api/demo', DemoRequest);
 
 // Middleware para 404
 app.use((req, res) => {
@@ -36,15 +39,25 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: "Error interno del servidor" });
 });
 
-// 🟢 Conexión a MongoDB + Server
-mongoose.connect(process.env.DB_URI)
-  .then(() => {
-    console.log("Conectado a MongoDB");
-    app.listen(PORT, () =>
-      console.log(`Servidor corriendo en http://localhost:${PORT}`)
-    );
-  })
-  .catch((err) => console.error("Error al conectar a MongoDB:", err));
+const startServer = async () => {
+  try {
+    await mongoose.connect(process.env.DB_URI);
+    console.log("✅ Conectado a MongoDB");
 
-await Producto.syncIndexes();
+    await ContactMessageSchema.syncIndexes();
+    await DemoRequestSchema.syncIndexes();
+
+    console.log("📌 Índices sincronizados");
+
+    app.listen(PORT, () => {
+      console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
+    });
+  } catch (error) {
+    console.error("❌ Error iniciando el servidor:", error);
+    process.exit(1);
+  }
+};
+
+startServer();
+
 app.use(express.json());
