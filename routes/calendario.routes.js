@@ -38,23 +38,35 @@ router.post("/", async (req, res) => {
       time,
     });
 
+    console.log("✅ Demo guardado:", demo._id);
+
     /* ===========================
-       📧 Emails
+       🚀 RESPUESTA AL FRONTEND
        =========================== */
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
+    res.status(201).json({
+      message: "Demo scheduled successfully",
+      demoId: demo._id,
     });
 
-    // Email interno (Neurollow)
-    await transporter.sendMail({
-      from: `"Neurollow Demo Scheduler" <${process.env.EMAIL_USER}>`,
-      to: process.env.EMAIL_USER,
-      subject: `New demo scheduled – ${name}`,
-      text: `
+    /* ===========================
+       📧 Emails (NO BLOQUEANTES)
+       =========================== */
+    try {
+      const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS,
+        },
+        connectionTimeout: 5000, // ⏱️ evita waits eternos
+      });
+
+      // Email interno
+      await transporter.sendMail({
+        from: `"Neurollow Demo Scheduler" <${process.env.EMAIL_USER}>`,
+        to: process.env.EMAIL_USER,
+        subject: `New demo scheduled – ${name}`,
+        text: `
 New demo request received
 
 Name: ${name}
@@ -67,45 +79,50 @@ Time: ${time}
 
 Message:
 ${message || "No additional message"}
-      `,
-    });
+        `,
+      });
 
-    // Confirmación usuario
-    await transporter.sendMail({
-      from: `"Neurollow Team" <${process.env.EMAIL_USER}>`,
-      to: email,
-      subject: "Your Neurollow demo is scheduled",
-      text: `
+      // Confirmación usuario
+      await transporter.sendMail({
+        from: `"Neurollow Team" <${process.env.EMAIL_USER}>`,
+        to: email,
+        subject: "Your Neurollow demo is scheduled",
+        text: `
 Hello ${name},
 
 Thank you for scheduling a demo with Neurollow.
 
 📅 Date: ${new Date(date).toLocaleDateString("en-US", {
-        weekday: "long",
-        month: "long",
-        day: "numeric",
-        year: "numeric",
-      })}
+          weekday: "long",
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+        })}
 ⏰ Time: ${time}
 
 One of our specialists will contact you shortly with meeting details.
 
 Kind regards,
 Neurollow Team
-      `,
-    });
+        `,
+      });
 
-    res.status(201).json({
-      message: "Demo scheduled successfully",
-      demoId: demo._id,
-    });
+      console.log("📧 Emails enviados correctamente");
+
+    } catch (mailError) {
+      console.error(
+        "⚠️ Email NO enviado (no crítico):",
+        mailError.code || mailError.message
+      );
+    }
 
   } catch (error) {
     console.error("❌ Demo scheduling error:", error);
-    res.status(500).json({
+    return res.status(500).json({
       error: "Failed to schedule demo",
     });
   }
 });
 
 export default router;
+
