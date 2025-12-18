@@ -8,26 +8,14 @@ const router = express.Router();
 
 // POST /api/demo
 router.post("/", async (req, res) => {
-  const {
-    name,
-    email,
-    institution,
-    role,
-    message,
-    date,
-    time,
-  } = req.body;
+  const { name, email, institution, role, message, date, time } = req.body;
 
   if (!name || !email || !role || !date || !time) {
-    return res.status(400).json({
-      error: "Missing required fields",
-    });
+    return res.status(400).json({ error: "Missing required fields" });
   }
 
   try {
-    /* ===========================
-       💾 Guardar en Mongo
-       =========================== */
+    // 1️⃣ Guardar en Mongo
     const demo = await DemoRequest.create({
       name,
       email,
@@ -40,84 +28,46 @@ router.post("/", async (req, res) => {
 
     console.log("✅ Demo guardado:", demo._id);
 
-    /* ===========================
-       🚀 RESPUESTA AL FRONTEND
-       =========================== */
+    // 2️⃣ RESPONDER AL FRONTEND Y TERMINAR REQUEST
     res.status(201).json({
       message: "Demo scheduled successfully",
       demoId: demo._id,
     });
 
-    /* ===========================
-       📧 Emails (NO BLOQUEANTES)
-       =========================== */
-    try {
-      const transporter = nodemailer.createTransport({
-        service: "gmail",
-        auth: {
-          user: process.env.EMAIL_USER,
-          pass: process.env.EMAIL_PASS,
-        },
-        connectionTimeout: 5000, // ⏱️ evita waits eternos
-      });
+    // 3️⃣ MAIL EN BACKGROUND (fuera del flujo HTTP)
+    setImmediate(async () => {
+      try {
+        const transporter = nodemailer.createTransport({
+          service: "gmail",
+          auth: {
+            user: process.env.EMAIL_USER,
+            pass: process.env.EMAIL_PASS,
+          },
+          connectionTimeout: 5000,
+        });
 
-      // Email interno
-      await transporter.sendMail({
-        from: `"Neurollow Demo Scheduler" <${process.env.EMAIL_USER}>`,
-        to: process.env.EMAIL_USER,
-        subject: `New demo scheduled – ${name}`,
-        text: `
-New demo request received
+        await transporter.sendMail({
+          from: `"Neurollow" <${process.env.EMAIL_USER}>`,
+          to: process.env.EMAIL_USER,
+          subject: `New demo scheduled – ${name}`,
+          text: `New demo from ${name} (${email})`,
+        });
 
-Name: ${name}
-Email: ${email}
-Institution: ${institution || "Not specified"}
-Role: ${role}
+        await transporter.sendMail({
+          from: `"Neurollow" <${process.env.EMAIL_USER}>`,
+          to: email,
+          subject: "Your Neurollow demo is scheduled",
+          text: `Your demo is scheduled for ${time}`,
+        });
 
-Scheduled date: ${new Date(date).toLocaleDateString()}
-Time: ${time}
-
-Message:
-${message || "No additional message"}
-        `,
-      });
-
-      // Confirmación usuario
-      await transporter.sendMail({
-        from: `"Neurollow Team" <${process.env.EMAIL_USER}>`,
-        to: email,
-        subject: "Your Neurollow demo is scheduled",
-        text: `
-Hello ${name},
-
-Thank you for scheduling a demo with Neurollow.
-
-📅 Date: ${new Date(date).toLocaleDateString("en-US", {
-          weekday: "long",
-          month: "long",
-          day: "numeric",
-          year: "numeric",
-        })}
-⏰ Time: ${time}
-
-One of our specialists will contact you shortly with meeting details.
-
-Kind regards,
-Neurollow Team
-        `,
-      });
-
-      console.log("📧 Emails enviados correctamente");
-
-    } catch (mailError) {
-      console.error(
-        "⚠️ Email NO enviado (no crítico):",
-        mailError.code || mailError.message
-      );
-    }
+        console.log("📧 Emails enviados");
+      } catch (err) {
+        console.error("⚠️ Mail falló (background):", err.message);
+      }
+    });
 
   } catch (error) {
-    console.error("❌ Demo scheduling error:", error);
+    console.error("❌ Error real:", error);
     return res.status(500).json({
       error: "Failed to schedule demo",
     });
