@@ -1,7 +1,7 @@
 import express from "express";
 import dotenv from "dotenv";
 import DemoRequest from "../models/Calendario.js";
-import { Resend } from "../mail.js";
+import { Resend } from "resend";
 
 dotenv.config();
 const router = express.Router();
