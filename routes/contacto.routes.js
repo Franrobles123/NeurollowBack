@@ -1,7 +1,8 @@
 import express from "express";
 import dotenv from "dotenv";
 import { Resend } from "resend";
-
+import ContactMessage from "../models/Contacto.js";
+ 
 dotenv.config();
 const router = express.Router();
 
@@ -20,20 +21,34 @@ router.post("/", async (req, res) => {
 
   console.log("📩 New contact message received:", req.body);
 
+  // ✅ Validación primero
   if (!name || !email || !inquiryType || !message) {
     return res.status(400).json({ error: "Missing required fields" });
   }
 
   try {
-    // 1️⃣ RESPONDER RÁPIDO AL FRONT
-    res.status(200).json({
-      message: "Contact form submitted successfully",
+    // 1️⃣ Guardar en Mongo
+    const contact = await ContactMessage.create({
+      name,
+      email,
+      institution,
+      role,
+      inquiryType,
+      message,
     });
 
-    // 2️⃣ EMAILS EN BACKGROUND
+    console.log("💾 Contact message saved:", contact._id);
+
+    // 2️⃣ Responder rápido al frontend
+    res.status(200).json({
+      message: "Contact form submitted successfully",
+      contactId: contact._id,
+    });
+
+    // 3️⃣ Emails en background (no bloquean)
     setImmediate(async () => {
       try {
-        // 📧 Mail interno (admin)
+        // 📧 Mail interno
         await resend.emails.send({
           from: "Neurollow <onboarding@resend.dev>",
           to: process.env.CONTACT_RECEIVER_EMAIL || process.env.EMAIL_USER,
@@ -79,12 +94,12 @@ router.post("/", async (req, res) => {
 
   } catch (error) {
     console.error("❌ Contact endpoint error:", error);
-    // ⚠️ casi nunca entra acá
     return res.status(500).json({
       error: "Failed to send message",
     });
   }
 });
+
 
 export default router;
 
